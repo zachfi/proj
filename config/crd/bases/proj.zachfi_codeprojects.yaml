@@ -35,10 +35,51 @@ spec:
           spec:
             description: CodeProjectSpec defines the desired state of CodeProject
             properties:
-              foo:
-                description: Foo is an example field of CodeProject. Edit codeproject_types.go
-                  to remove/update
+              owner:
+                description: Owner is the github project owner.
                 type: string
+              post_template_hooks:
+                description: PreTemplateHooks are executed in order after the templates
+                  are written to the working directory of the project.
+                items:
+                  properties:
+                    args:
+                      items:
+                        type: string
+                      type: array
+                    command:
+                      type: string
+                  type: object
+                type: array
+              pre_template_hooks:
+                description: PreTemplateHooks are executed in order before the templates
+                  are written to the working directory of the project.
+                items:
+                  properties:
+                    args:
+                      items:
+                        type: string
+                      type: array
+                    command:
+                      type: string
+                  type: object
+                type: array
+              repo:
+                description: Owner is the github repo name.
+                type: string
+              template_volumes:
+                description: TemplateVolumes creates the source directory structure
+                  of templates based on configmaps, mounted to specific relative locations.  This
+                  final directory structure will be used as the `--input-dir` argument
+                  for `gomplate`.
+                items:
+                  properties:
+                    configmap:
+                      type: string
+                    mount_path:
+                      type: string
+                  type: object
+                type: array
             type: object
           status:
             description: CodeProjectStatus defines the observed state of CodeProject
