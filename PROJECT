@@ -7,4 +7,14 @@ layout:
 - go.kubebuilder.io/v3
 projectName: proj
 repo: github.com/zachfi/proj
+resources:
+- api:
+    crdVersion: v1
+    namespaced: true
+  controller: true
+  domain: zachfi
+  group: proj
+  kind: CodeProject
+  path: github.com/zachfi/proj/api/v1
+  version: v1
 version: "3"

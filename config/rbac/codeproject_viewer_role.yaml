@@ -1,0 +1,27 @@
+# permissions for end users to view codeprojects.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  labels:
+    app.kubernetes.io/name: clusterrole
+    app.kubernetes.io/instance: codeproject-viewer-role
+    app.kubernetes.io/component: rbac
+    app.kubernetes.io/created-by: proj
+    app.kubernetes.io/part-of: proj
+    app.kubernetes.io/managed-by: kustomize
+  name: codeproject-viewer-role
+rules:
+- apiGroups:
+  - proj.zachfi
+  resources:
+  - codeprojects
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - proj.zachfi
+  resources:
+  - codeprojects/status
+  verbs:
+  - get
