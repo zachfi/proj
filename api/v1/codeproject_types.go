@@ -20,16 +20,37 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
-// EDIT THIS FILE!  THIS IS SCAFFOLDING FOR YOU TO OWN!
-// NOTE: json tags are required.  Any new fields you add must have json tags for the fields to be serialized.
-
 // CodeProjectSpec defines the desired state of CodeProject
 type CodeProjectSpec struct {
-	// INSERT ADDITIONAL SPEC FIELDS - desired state of cluster
-	// Important: Run "make" to regenerate code after modifying this file
+	// Owner is the github project owner.
+	Owner string `json:"owner,omitempty"`
 
-	// Foo is an example field of CodeProject. Edit codeproject_types.go to remove/update
-	Foo string `json:"foo,omitempty"`
+	// Owner is the github repo name.
+	Repo string `json:"repo,omitempty"`
+
+	// PreTemplateHooks are executed in order before the templates are written to
+	// the working directory of the project.
+	PreTemplateHooks []Hook `json:"pre_template_hooks,omitempty"`
+
+	// PreTemplateHooks are executed in order after the templates are written to
+	// the working directory of the project.
+	PostTemplateHooks []Hook `json:"post_template_hooks,omitempty"`
+
+	// TemplateVolumes creates the source directory structure of templates based
+	// on configmaps, mounted to specific relative locations.  This final
+	// directory structure will be used as the `--input-dir` argument for
+	// `gomplate`.
+	TemplateVolumes []TemplateVolume `json:"template_volumes,omitempty"`
+}
+
+type Hook struct {
+	Command   string   `json:"command,omitempty"`
+	Arguments []string `json:"args,omitempty"`
+}
+
+type TemplateVolume struct {
+	ConfigMapRef string `json:"configmap,omitempty"`
+	MountPath    string `json:"mount_path,omitempty"`
 }
 
 // CodeProjectStatus defines the observed state of CodeProject
