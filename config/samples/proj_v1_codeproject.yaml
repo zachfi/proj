@@ -1,0 +1,12 @@
+apiVersion: proj.zachfi/v1
+kind: CodeProject
+metadata:
+  labels:
+    app.kubernetes.io/name: codeproject
+    app.kubernetes.io/instance: codeproject-sample
+    app.kubernetes.io/part-of: proj
+    app.kubernetes.io/managed-by: kustomize
+    app.kubernetes.io/created-by: proj
+  name: codeproject-sample
+spec:
+  # TODO(user): Add fields here
