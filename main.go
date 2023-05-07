@@ -18,10 +18,13 @@ package main
 
 import (
 	"flag"
+	"fmt"
 	"os"
 
 	// Import all Kubernetes client auth plugins (e.g. Azure, GCP, OIDC, etc.)
 	// to ensure that exec-entrypoint and run can make use of them.
+
+	"go.opentelemetry.io/otel"
 	_ "k8s.io/client-go/plugin/pkg/client/auth"
 
 	"k8s.io/apimachinery/pkg/runtime"
@@ -31,10 +34,38 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/healthz"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 
+	"github.com/go-kit/log"
 	projv1 "github.com/zachfi/proj/api/v1"
 	"github.com/zachfi/proj/controllers"
+	"github.com/zachfi/zkit/pkg/tracing"
 	//+kubebuilder:scaffold:imports
 )
+
+// version contains all the information related to the CLI version
+type version struct {
+	GitCommit string `json:"gitCommit"`
+	BuildDate string `json:"buildDate"`
+	GoOs      string `json:"goOs"`
+	GoArch    string `json:"goArch"`
+}
+
+var (
+	goos      = "unknown"
+	goarch    = "unknown"
+	gitCommit = "$Format:%H$" // sha1 from git, output of $(git rev-parse HEAD)
+
+	buildDate = "1970-01-01T00:00:00Z" // build date in ISO8601 format, output of $(date -u +'%Y-%m-%dT%H:%M:%SZ')
+)
+
+// versionString returns the CLI version
+func versionString() string {
+	return fmt.Sprintf("Version: %#v", version{
+		gitCommit,
+		buildDate,
+		goos,
+		goarch,
+	})
+}
 
 var (
 	scheme   = runtime.NewScheme()
@@ -52,6 +83,8 @@ func main() {
 	var metricsAddr string
 	var enableLeaderElection bool
 	var probeAddr string
+	var otelEndpoint string
+	var orgID string
 	flag.StringVar(&metricsAddr, "metrics-bind-address", ":8080", "The address the metric endpoint binds to.")
 	flag.StringVar(&probeAddr, "health-probe-bind-address", ":8081", "The address the probe endpoint binds to.")
 	flag.BoolVar(&enableLeaderElection, "leader-elect", false,
@@ -60,6 +93,8 @@ func main() {
 	opts := zap.Options{
 		Development: true,
 	}
+	flag.StringVar(&otelEndpoint, "otel-endpoint", "", "The URL to use when sending traces")
+	flag.StringVar(&orgID, "org-id", "", "The X-Scope-OrgID header to set when sending traces")
 	opts.BindFlags(flag.CommandLine)
 	flag.Parse()
 
@@ -92,6 +127,7 @@ func main() {
 	if err = (&controllers.CodeProjectReconciler{
 		Client: mgr.GetClient(),
 		Scheme: mgr.GetScheme(),
+		Tracer: otel.Tracer("CodeProject"),
 	}).SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "CodeProject")
 		os.Exit(1)
@@ -105,6 +141,23 @@ func main() {
 	if err := mgr.AddReadyzCheck("readyz", healthz.Ping); err != nil {
 		setupLog.Error(err, "unable to set up ready check")
 		os.Exit(1)
+	}
+
+	if otelEndpoint != "" {
+		shutdownTracer, err := tracing.InstallOpenTelemetryTracer(
+			&tracing.Config{
+				OtelEndpoint: otelEndpoint,
+				OrgID:        orgID,
+			},
+			log.NewLogfmtLogger(os.Stderr),
+			"nodemanager",
+			versionString(),
+		)
+		if err != nil {
+			setupLog.Error(err, "error initializing tracer")
+			os.Exit(1)
+		}
+		defer shutdownTracer()
 	}
 
 	setupLog.Info("starting manager")

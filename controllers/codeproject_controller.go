@@ -18,12 +18,19 @@ package controllers
 
 import (
 	"context"
+	"fmt"
+	"os"
 
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/codes"
+	"go.opentelemetry.io/otel/trace"
 	"k8s.io/apimachinery/pkg/runtime"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/log"
 
+	"github.com/go-git/go-git/v5"
+	"github.com/pkg/errors"
 	projv1 "github.com/zachfi/proj/api/v1"
 )
 
@@ -31,6 +38,7 @@ import (
 type CodeProjectReconciler struct {
 	client.Client
 	Scheme *runtime.Scheme
+	Tracer trace.Tracer
 }
 
 //+kubebuilder:rbac:groups=proj.zachfi,resources=codeprojects,verbs=get;list;watch;create;update;patch;delete
@@ -47,9 +55,49 @@ type CodeProjectReconciler struct {
 // For more details, check Reconcile and its Result here:
 // - https://pkg.go.dev/sigs.k8s.io/controller-runtime@v0.14.1/pkg/reconcile
 func (r *CodeProjectReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
-	_ = log.FromContext(ctx)
+	var err error
+	log := log.FromContext(ctx)
 
-	// TODO(user): your logic here
+	attributes := []attribute.KeyValue{
+		attribute.String("req", req.String()),
+		attribute.String("namespace", req.Namespace),
+	}
+
+	ctx, span := r.Tracer.Start(ctx, "Reconcile", trace.WithAttributes(attributes...))
+	defer func() {
+		if err != nil {
+			span.SetStatus(codes.Error, err.Error())
+		} else {
+			span.SetStatus(codes.Ok, "complete")
+		}
+		span.End()
+	}()
+
+	var project projv1.CodeProject
+	if err = r.Get(ctx, req.NamespacedName, &project); err != nil {
+		return ctrl.Result{}, client.IgnoreNotFound(err)
+	}
+
+	dir, err := os.MkdirTemp("/tmp", fmt.Sprintf("proj_maintenance_%s_%s", project.Spec.Owner, project.Spec.Repo))
+	githubURL := fmt.Sprintf("https://github.com/%s/%s.git", project.Spec.Owner, project.Spec.Repo)
+	repo, err := git.PlainClone(dir, false, &git.CloneOptions{
+		URL:   githubURL,
+		Depth: 1,
+	})
+
+	head, err := repo.Head()
+	if err != nil {
+		return ctrl.Result{}, errors.Wrap(err, "failed to read HEAD")
+	}
+
+	var status projv1.CodeProjectStatus
+	status.Hash = head.Hash().String()
+	project.Status = status
+	log.Info("updating project status", "project", req.Name, "status", fmt.Sprintf("%+v", project.Status))
+	if err := r.Status().Update(ctx, &project); err != nil {
+		log.Error(err, "unable to update ManagedNode status")
+		return ctrl.Result{}, err
+	}
 
 	return ctrl.Result{}, nil
 }
@@ -59,4 +107,42 @@ func (r *CodeProjectReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&projv1.CodeProject{}).
 		Complete(r)
+}
+
+func (r *CodeProjectReconciler) clone() error {
+	var err error
+
+	// if i.dir == "" {
+	// 	var dir string
+	// 	dir, err = os.MkdirTemp("/tmp", fmt.Sprintf("keeper_%s_%s", i.Username, i.Name))
+	// 	if err != nil {
+	// 		return fmt.Errorf("failed to create temp dir: %w", err)
+	// 	}
+	// 	i.dir = dir
+	// }
+	//
+	// githubURL := fmt.Sprintf("https://github.com/%s/%s.git", i.Username, i.Name)
+	//
+	// // Clones the repository into the given dir, just as a normal git clone does
+	// i.gitRepo, err = git.PlainClone(i.dir, false, &git.CloneOptions{
+	// 	URL:   githubURL,
+	// 	Depth: 10,
+	// })
+
+	return err
+
+	// if err != nil {
+	// 	i.SetStatus(Failed)
+	// 	return fmt.Errorf("clone failed: %w", err)
+	// }
+	// i.SetStatus(Done)
+
+	// // Prints the content of the CHANGELOG file from the cloned repository
+	// changelog, err := os.Open(filepath.Join(dir, "CHANGELOG"))
+	// if err != nil {
+	// 	log.Fatal(err)
+	// }
+	//
+	// io.Copy(os.Stdout, changelog)
+	// // Output: Initial changelog
 }
