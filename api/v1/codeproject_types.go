@@ -55,8 +55,7 @@ type TemplateVolume struct {
 
 // CodeProjectStatus defines the observed state of CodeProject
 type CodeProjectStatus struct {
-	// INSERT ADDITIONAL STATUS FIELD - define observed state of cluster
-	// Important: Run "make" to regenerate code after modifying this file
+	Hash string `json:"hash,omitempty"`
 }
 
 //+kubebuilder:object:root=true

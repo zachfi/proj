@@ -83,6 +83,9 @@ spec:
             type: object
           status:
             description: CodeProjectStatus defines the observed state of CodeProject
+            properties:
+              hash:
+                type: string
             type: object
         type: object
     served: true
